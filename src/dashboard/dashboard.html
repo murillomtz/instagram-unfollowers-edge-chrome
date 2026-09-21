@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Resultado · Unfollow Local</title>
+    <link rel="stylesheet" href="dashboard.css">
+  </head>
+  <body>
+    <main>
+      <header>
+        <div>
+          <p class="eyebrow">UNFOLLOW LOCAL</p>
+          <h1>Quem deixou de seguir você</h1>
+          <p id="subtitle">Carregando resultado…</p>
+        </div>
+        <button id="scanAgain" type="button">Verificar novamente</button>
+      </header>
+
+      <section id="summary" class="summary hidden">
+        <article><strong id="removedTotal">0</strong><span>deixaram de seguir</span></article>
+        <article><strong id="currentTotal">0</strong><span>seguidores atuais</span></article>
+        <article><strong id="previousTotal">—</strong><span>snapshot anterior</span></article>
+      </section>
+
+      <section id="baseline" class="empty hidden">
+        <div class="empty-icon">✓</div>
+        <h2>Lista-base criada</h2>
+        <p>Nenhum unfollow é exibido na primeira execução. Faça outra verificação no futuro para comparar.</p>
+      </section>
+
+      <section id="noRemoved" class="empty hidden">
+        <div class="empty-icon">♡</div>
+        <h2>Ninguém deixou de seguir</h2>
+        <p>A lista atual não possui ausências em relação à última varredura válida.</p>
+      </section>
+
+      <section id="results" class="results hidden">
+        <div class="results-title"><h2>Pessoas encontradas</h2><span id="resultCount"></span></div>
+        <div id="followerList" class="list"></div>
+      </section>
+
+      <section id="missingResult" class="empty hidden">
+        <h2>Nenhuma varredura disponível</h2>
+        <p>Abra a extensão e execute sua primeira verificação.</p>
+      </section>
+    </main>
+    <script type="module" src="dashboard.js"></script>
+  </body>
+</html>

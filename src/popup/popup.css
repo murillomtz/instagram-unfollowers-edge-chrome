@@ -1,0 +1,15 @@
+:root{color-scheme:light;font-family:Inter,Segoe UI,Arial,sans-serif;color:#111827;background:#f8fafc}
+*{box-sizing:border-box}
+body{margin:0;width:370px;min-height:500px;background:linear-gradient(160deg,#f8fafc 0%,#eef2ff 100%)}
+main{padding:20px}
+header{display:flex;align-items:center;gap:12px;margin-bottom:18px}
+.logo{display:grid;place-items:center;width:42px;height:42px;border-radius:13px;background:#111827;color:white;font-weight:800;letter-spacing:-1px}
+h1{margin:0;font-size:19px}header p{margin:3px 0 0;color:#64748b;font-size:12px}
+.privacy{display:flex;gap:8px;align-items:center;padding:10px 12px;border-radius:10px;background:#ecfdf5;color:#166534;font-size:12px}.privacy span{color:#22c55e;font-size:10px}
+.card{margin-top:14px;padding:16px;border:1px solid #e2e8f0;border-radius:14px;background:rgba(255,255,255,.9);box-shadow:0 8px 24px rgba(15,23,42,.05)}
+.label{margin:0 0 5px;color:#6366f1;font-size:10px;font-weight:800;letter-spacing:.12em}
+.card strong{font-size:16px}.card>p:not(.label){margin:7px 0 0;color:#64748b;font-size:12px;line-height:1.5}
+.progress{margin-top:14px}.progress>div{height:7px;overflow:hidden;border-radius:99px;background:#e2e8f0}.progress span{display:block;width:20%;height:100%;border-radius:99px;background:#4f46e5;transition:width .25s}.progress small{display:block;margin-top:6px;color:#64748b}
+.result-head{display:grid;grid-template-columns:1fr 1fr;gap:12px}.result-head div{padding:10px;border-radius:10px;background:#f8fafc}.result-head span{display:block;font-size:22px;font-weight:800}.result-head small{color:#64748b;font-size:10px}
+button{width:100%;border:0;border-radius:11px;padding:12px;font-weight:700;cursor:pointer}.primary{margin-top:14px;background:#111827;color:white}.primary:hover{background:#1e293b}.primary:disabled{cursor:not-allowed;opacity:.55}.secondary{margin-top:12px;background:#eef2ff;color:#3730a3}.danger{margin-top:8px;background:#fee2e2;color:#991b1b}
+.footnote{text-align:center;color:#94a3b8;font-size:10px}.muted{color:#94a3b8!important}.hidden{display:none!important}
