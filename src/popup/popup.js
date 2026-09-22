@@ -10,18 +10,17 @@ const elements = {
   progressText: document.querySelector("#progressText"),
   lastResult: document.querySelector("#lastResult"),
   removedCount: document.querySelector("#removedCount"),
+  nonFollowersCount: document.querySelector("#nonFollowersCount"),
   followersCount: document.querySelector("#followersCount"),
   lastScanAt: document.querySelector("#lastScanAt"),
-  startScan: document.querySelector("#startScan"),
+  scanUnfollowers: document.querySelector("#scanUnfollowers"),
+  scanNonFollowers: document.querySelector("#scanNonFollowers"),
   cancelScan: document.querySelector("#cancelScan"),
   openDashboard: document.querySelector("#openDashboard")
 };
 
-elements.startScan.addEventListener("click", async () => {
-  elements.startScan.disabled = true;
-  await chrome.runtime.sendMessage({ type: "START_SCAN" });
-  await refresh();
-});
+elements.scanUnfollowers.addEventListener("click", () => startScan("unfollowers"));
+elements.scanNonFollowers.addEventListener("click", () => startScan("nonFollowers"));
 
 elements.cancelScan.addEventListener("click", async () => {
   await chrome.runtime.sendMessage({ type: "CANCEL_SCAN" });
@@ -44,6 +43,12 @@ async function refresh() {
   renderResult(localStore[RESULT_KEY]);
 }
 
+async function startScan(mode) {
+  setScanButtonsDisabled(true);
+  await chrome.runtime.sendMessage({ type: "START_SCAN", mode });
+  await refresh();
+}
+
 function renderSession(session = {}) {
   const active = ACTIVE_STATUSES.has(session.status);
   const labels = {
@@ -51,7 +56,7 @@ function renderSession(session = {}) {
     login_required: "Login necessário",
     finding_profile: "Identificando perfil",
     opening_followers: "Abrindo seguidores",
-    scanning: "Verificando seguidores",
+    scanning: "Analisando relações",
     completed: "Verificação concluída",
     failed: "Não foi possível concluir",
     cancelled: "Varredura cancelada",
@@ -60,8 +65,7 @@ function renderSession(session = {}) {
 
   elements.statusTitle.textContent = labels[session.status] ?? labels.idle;
   elements.statusMessage.textContent = session.message ?? "A primeira execução criará sua lista-base.";
-  elements.startScan.disabled = active;
-  elements.startScan.textContent = active ? "Verificação em andamento" : "Verificar agora";
+  setScanButtonsDisabled(active);
   elements.cancelScan.classList.toggle("hidden", !active);
   elements.progressArea.classList.toggle("hidden", !active);
 
@@ -74,11 +78,25 @@ function renderSession(session = {}) {
     : `${formatNumber(collected)} coletados`;
 }
 
+function setScanButtonsDisabled(disabled) {
+  elements.scanUnfollowers.disabled = disabled;
+  elements.scanNonFollowers.disabled = disabled;
+}
+
 function renderResult(result) {
   elements.lastResult.classList.toggle("hidden", !result);
   if (!result) return;
-  elements.removedCount.textContent = formatNumber(result.removed?.length ?? 0);
-  elements.followersCount.textContent = formatNumber(result.currentTotal ?? 0);
+  const unfollowersAvailable = result.unfollowersAvailable === true || result.currentTotal != null;
+  elements.removedCount.textContent = unfollowersAvailable
+    ? formatNumber(result.removed?.length ?? 0)
+    : "—";
+  elements.nonFollowersCount.textContent = result.nonFollowersAvailable
+    ? formatNumber(result.nonFollowers?.length ?? 0)
+    : "—";
+  const followersTotal = result.lastMode === "nonFollowers"
+    ? result.nonFollowersFollowersTotal
+    : (result.unfollowersCurrentTotal ?? result.currentTotal);
+  elements.followersCount.textContent = followersTotal == null ? "—" : formatNumber(followersTotal);
   elements.lastScanAt.textContent = `Última verificação: ${formatDate(result.scannedAt)}`;
 }
 

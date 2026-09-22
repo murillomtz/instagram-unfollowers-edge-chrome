@@ -1,8 +1,10 @@
-import { compareFollowers, normalizeUsername, toFollowerMap } from "../core/follower-comparator.js";
+import { compareFollowers, findNonFollowers, normalizeUsername, toFollowerMap } from "../core/follower-comparator.js";
+import { isAllowedAvatarUrl, isAllowedImageType } from "../core/avatar-policy.js";
 
 const SESSION_KEY = "scanSession";
 const RESULT_KEY = "lastScanResult";
 const SNAPSHOT_PREFIX = "followersSnapshot:";
+const SCAN_MODES = new Set(["unfollowers", "nonFollowers"]);
 
 chrome.runtime.onInstalled.addListener(() => {
   chrome.storage.session.set({
@@ -20,7 +22,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 async function handleMessage(message, sender) {
   switch (message?.type) {
     case "START_SCAN":
-      return startScan();
+      return startScan(message.mode);
     case "GET_SCAN_STATE":
       return { ok: true, session: await getSession() };
     case "SCAN_PROGRESS":
@@ -34,17 +36,23 @@ async function handleMessage(message, sender) {
     case "OPEN_DASHBOARD":
       await chrome.tabs.create({ url: chrome.runtime.getURL("src/dashboard/dashboard.html") });
       return { ok: true };
+    case "LOAD_AVATAR":
+      return loadAvatar(message.url);
     default:
       return { ok: false, error: "Mensagem desconhecida." };
   }
 }
 
-async function startScan() {
+async function startScan(rawMode) {
+  const mode = SCAN_MODES.has(rawMode) ? rawMode : "unfollowers";
   const scanId = crypto.randomUUID();
   const session = {
     scanId,
+    mode,
     status: "starting",
-    message: "Abrindo o Instagram…",
+    message: mode === "unfollowers"
+      ? "Preparando a análise de quem deixou de seguir…"
+      : "Preparando a análise de quem não segue você…",
     collected: 0,
     expected: null,
     startedAt: new Date().toISOString(),
@@ -91,55 +99,124 @@ async function completeScan(payload, tabId) {
   }
 
   const account = normalizeUsername(payload?.account);
+  const mode = SCAN_MODES.has(session.mode) ? session.mode : payload?.mode;
   const followers = Array.isArray(payload?.followers) ? payload.followers : [];
-  if (!account) {
+  const followingAvailable = Array.isArray(payload?.following);
+  const following = followingAvailable ? payload.following : [];
+  if (!account || !SCAN_MODES.has(mode)) {
     throw new Error("A varredura não retornou uma conta e uma lista válidas.");
+  }
+  if (mode === "nonFollowers" && !followingAvailable) {
+    throw new Error("A lista de contas seguidas não foi concluída.");
   }
 
   const snapshotKey = `${SNAPSHOT_PREFIX}${account}`;
-  const stored = await chrome.storage.local.get(snapshotKey);
+  const stored = await chrome.storage.local.get([snapshotKey, RESULT_KEY]);
   const previousSnapshot = stored[snapshotKey] ?? null;
+  const previousResult = stored[RESULT_KEY]?.account === account ? stored[RESULT_KEY] : {};
   const currentFollowers = toFollowerMap(followers);
-  const removed = previousSnapshot
-    ? compareFollowers(previousSnapshot.followers, currentFollowers)
-    : [];
-
   const scannedAt = new Date().toISOString();
-  const result = {
+  let result = {
+    ...previousResult,
     account,
     scannedAt,
-    isBaseline: !previousSnapshot,
-    currentTotal: Object.keys(currentFollowers).length,
-    previousTotal: previousSnapshot?.total ?? null,
-    removed
+    lastMode: mode,
+    removed: Array.isArray(previousResult.removed) ? previousResult.removed : [],
+    unfollowersAvailable: previousResult.unfollowersAvailable === true || Number.isFinite(previousResult.currentTotal),
+    nonFollowers: Array.isArray(previousResult.nonFollowers) ? previousResult.nonFollowers : [],
+    nonFollowersAvailable: previousResult.nonFollowersAvailable === true
   };
 
-  await chrome.storage.local.set({
-    [snapshotKey]: {
+  const changes = {};
+  if (mode === "unfollowers") {
+    const currentTotal = Object.keys(currentFollowers).length;
+    result = {
+      ...result,
+      unfollowersScannedAt: scannedAt,
+      unfollowersAvailable: true,
+      isBaseline: !previousSnapshot,
+      currentTotal,
+      unfollowersCurrentTotal: currentTotal,
+      previousTotal: previousSnapshot?.total ?? null,
+      removed: previousSnapshot
+        ? compareFollowers(previousSnapshot.followers, currentFollowers)
+        : []
+    };
+    changes[snapshotKey] = {
       account,
       scannedAt,
-      total: result.currentTotal,
+      total: currentTotal,
       followers: currentFollowers
-    },
-    [RESULT_KEY]: result
-  });
+    };
+  } else {
+    const currentFollowing = toFollowerMap(following);
+    result = {
+      ...result,
+      nonFollowersScannedAt: scannedAt,
+      nonFollowersFollowersTotal: Object.keys(currentFollowers).length,
+      followingTotal: Object.keys(currentFollowing).length,
+      nonFollowers: findNonFollowers(currentFollowers, currentFollowing),
+      nonFollowersAvailable: true
+    };
+  }
+
+  changes[RESULT_KEY] = result;
+  await chrome.storage.local.set(changes);
+
+  const completedTotal = mode === "unfollowers"
+    ? result.unfollowersCurrentTotal
+    : result.followingTotal;
+  const message = mode === "unfollowers"
+    ? (result.isBaseline ? "Primeira lista de seguidores salva." : "Análise de unfollow concluída.")
+    : "Análise de quem não segue você concluída.";
 
   await chrome.storage.session.set({
     [SESSION_KEY]: {
       ...session,
       status: "completed",
-      message: result.isBaseline
-        ? "Primeira lista salva com sucesso."
-        : "Comparação concluída.",
+      message,
       account,
-      collected: result.currentTotal,
-      expected: result.currentTotal,
+      collected: completedTotal,
+      expected: completedTotal,
       completedAt: scannedAt
     }
   });
 
-  await chrome.tabs.create({ url: chrome.runtime.getURL("src/dashboard/dashboard.html") });
+  const dashboardUrl = chrome.runtime.getURL(`src/dashboard/dashboard.html?tab=${mode}`);
+  await chrome.tabs.create({ url: dashboardUrl });
   return { ok: true, result };
+}
+
+async function loadAvatar(rawUrl) {
+  if (!isAllowedAvatarUrl(rawUrl)) return { ok: false };
+
+  const response = await fetch(rawUrl, {
+    method: "GET",
+    credentials: "omit",
+    cache: "force-cache",
+    referrerPolicy: "no-referrer"
+  });
+  if (!response.ok) return { ok: false };
+
+  const contentType = response.headers.get("content-type") ?? "";
+  const declaredSize = Number(response.headers.get("content-length") ?? 0);
+  if (!isAllowedImageType(contentType) || declaredSize > 2_500_000) return { ok: false };
+
+  const buffer = await response.arrayBuffer();
+  if (buffer.byteLength > 2_500_000) return { ok: false };
+  return {
+    ok: true,
+    dataUrl: `data:${contentType.split(";")[0]};base64,${arrayBufferToBase64(buffer)}`
+  };
+}
+
+function arrayBufferToBase64(buffer) {
+  const bytes = new Uint8Array(buffer);
+  let binary = "";
+  for (let offset = 0; offset < bytes.length; offset += 0x8000) {
+    binary += String.fromCharCode(...bytes.subarray(offset, offset + 0x8000));
+  }
+  return btoa(binary);
 }
 
 async function failScan(error, tabId) {
@@ -182,6 +259,7 @@ async function getSession() {
 function idleSession() {
   return {
     scanId: null,
+    mode: null,
     status: "idle",
     message: "Pronto para verificar.",
     collected: 0,

@@ -9,7 +9,7 @@
   <body>
     <main>
       <header>
-        <div class="logo">UL</div>
+        <img class="logo" src="../../assets/icons/icon48.png" alt="" width="42" height="42">
         <div>
           <h1>Unfollow Local</h1>
           <p>Instagram · Edge e Chrome</p>
@@ -34,13 +34,23 @@
       <section id="lastResult" class="card hidden">
         <div class="result-head">
           <div><span id="removedCount">0</span><small>deixaram de seguir</small></div>
+          <div><span id="nonFollowersCount">0</span><small>não me seguem</small></div>
           <div><span id="followersCount">0</span><small>seguidores atuais</small></div>
         </div>
         <p id="lastScanAt" class="muted"></p>
-        <button id="openDashboard" class="secondary" type="button">Ver resultado</button>
+        <button id="openDashboard" class="secondary" type="button">Ver análises</button>
       </section>
 
-      <button id="startScan" class="primary" type="button">Verificar agora</button>
+      <section class="scan-options" aria-label="Escolha uma análise">
+        <button id="scanUnfollowers" class="primary" type="button">
+          <span>Quem parou de me seguir</span>
+          <small>Compara os seguidores atuais com o último snapshot.</small>
+        </button>
+        <button id="scanNonFollowers" class="primary alternate" type="button">
+          <span>Quem não me segue de volta</span>
+          <small>Compara quem você segue com seus seguidores atuais.</small>
+        </button>
+      </section>
       <button id="cancelScan" class="danger hidden" type="button">Cancelar varredura</button>
       <p class="footnote">Mantenha a aba do Instagram aberta durante a coleta.</p>
     </main>

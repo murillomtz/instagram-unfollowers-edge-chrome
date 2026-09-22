@@ -3,47 +3,52 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Resultado · Unfollow Local</title>
+    <title>Análise de seguidores · Unfollow Local</title>
     <link rel="stylesheet" href="dashboard.css">
   </head>
   <body>
     <main>
       <header>
-        <div>
-          <p class="eyebrow">UNFOLLOW LOCAL</p>
-          <h1>Quem deixou de seguir você</h1>
-          <p id="subtitle">Carregando resultado…</p>
+        <div class="brand-title">
+          <img src="../../assets/icons/icon48.png" alt="" width="48" height="48">
+          <div>
+            <p class="eyebrow">UNFOLLOW LOCAL® · PIVETOES ENTERPRISE CORPORATION</p>
+            <h1>Análise de seguidores</h1>
+            <p id="subtitle">Carregando resultado…</p>
+          </div>
         </div>
         <button id="scanAgain" type="button">Verificar novamente</button>
       </header>
 
-      <section id="summary" class="summary hidden">
-        <article><strong id="removedTotal">0</strong><span>deixaram de seguir</span></article>
-        <article><strong id="currentTotal">0</strong><span>seguidores atuais</span></article>
-        <article><strong id="previousTotal">—</strong><span>snapshot anterior</span></article>
+      <nav id="tabs" class="tabs hidden" aria-label="Tipos de análise">
+        <button class="tab active" type="button" data-tab="unfollowers" aria-selected="true">Quem parou de me seguir</button>
+        <button class="tab" type="button" data-tab="nonFollowers" aria-selected="false">Não me seguem</button>
+      </nav>
+
+      <section id="unfollowersPanel" class="panel hidden">
+        <div class="summary">
+          <article><strong id="removedTotal">0</strong><span>deixaram de seguir</span></article>
+          <article><strong id="currentTotal">0</strong><span>seguidores atuais</span></article>
+          <article><strong id="previousTotal">—</strong><span>snapshot anterior</span></article>
+        </div>
+        <section id="unfollowersUnavailable" class="empty hidden"><div class="empty-icon warning">!</div><h2>Análise ainda não executada</h2><p>Escolha “Quem parou de me seguir” no popup para criar ou comparar o snapshot.</p></section>
+        <section id="baseline" class="empty hidden"><div class="empty-icon">✓</div><h2>Lista-base criada</h2><p>Nenhum unfollow é exibido na primeira execução. Faça outra verificação no futuro para comparar.</p></section>
+        <section id="noRemoved" class="empty hidden"><div class="empty-icon">♡</div><h2>Ninguém deixou de seguir</h2><p>A lista atual não possui ausências em relação à última varredura válida.</p></section>
+        <section id="unfollowersResults" class="results hidden"><div class="results-title"><h2>Pessoas encontradas</h2><span id="unfollowersCount"></span></div><div id="unfollowersList" class="list"></div></section>
       </section>
 
-      <section id="baseline" class="empty hidden">
-        <div class="empty-icon">✓</div>
-        <h2>Lista-base criada</h2>
-        <p>Nenhum unfollow é exibido na primeira execução. Faça outra verificação no futuro para comparar.</p>
+      <section id="nonFollowersPanel" class="panel hidden">
+        <div class="summary">
+          <article><strong id="nonFollowersTotal">0</strong><span>não me seguem</span></article>
+          <article><strong id="followingTotal">0</strong><span>contas que sigo</span></article>
+          <article><strong id="followersTotal">0</strong><span>meus seguidores</span></article>
+        </div>
+        <section id="nonFollowersUnavailable" class="empty hidden"><div class="empty-icon warning">!</div><h2>Análise não disponível</h2><p>A lista de contas seguidas não foi concluída nesta verificação. Tente novamente.</p></section>
+        <section id="noNonFollowers" class="empty hidden"><div class="empty-icon">✓</div><h2>Todos seguem você de volta</h2><p>Não encontramos contas que você segue e que não seguem você atualmente.</p></section>
+        <section id="nonFollowersResults" class="results hidden"><div class="results-title"><h2>Não me seguem</h2><span id="nonFollowersCount"></span></div><div id="nonFollowersList" class="list"></div></section>
       </section>
 
-      <section id="noRemoved" class="empty hidden">
-        <div class="empty-icon">♡</div>
-        <h2>Ninguém deixou de seguir</h2>
-        <p>A lista atual não possui ausências em relação à última varredura válida.</p>
-      </section>
-
-      <section id="results" class="results hidden">
-        <div class="results-title"><h2>Pessoas encontradas</h2><span id="resultCount"></span></div>
-        <div id="followerList" class="list"></div>
-      </section>
-
-      <section id="missingResult" class="empty hidden">
-        <h2>Nenhuma varredura disponível</h2>
-        <p>Abra a extensão e execute sua primeira verificação.</p>
-      </section>
+      <section id="missingResult" class="empty hidden"><h2>Nenhuma varredura disponível</h2><p>Abra a extensão e execute sua primeira verificação.</p></section>
     </main>
     <script type="module" src="dashboard.js"></script>
   </body>

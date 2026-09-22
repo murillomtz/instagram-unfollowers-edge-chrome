@@ -1,14 +1,15 @@
-# SDD — Unfollow Local para Instagram
+# SDD — Unfollow Local V1.2.1
 
-Este diretório contém a especificação que orienta a primeira versão da extensão.
+Especificação da versão com histórico de unfollow, análise atual de não seguidores e avatares seguros.
 
 ## Documentos
 
-- `requirements.md`: escopo, requisitos funcionais e não funcionais.
-- `design.md`: arquitetura, fluxo, dados e decisões técnicas.
-- `tasks.md`: plano de implementação e estado das tarefas.
-- `acceptance.md`: cenários e critérios objetivos de aceite.
+- `requirements.md`: escopo, regras e requisitos.
+- `design.md`: arquitetura, fluxos, dados e tratamento de erros.
+- `tasks.md`: checklist de implementação.
+- `acceptance.md`: critérios de aceite testáveis.
+- `../security-audit.md`: diagnóstico de segurança e permissões.
 
 ## Regra central
 
-Uma coleta incompleta nunca substitui o último snapshot válido. Essa regra evita classificar como unfollow pessoas que apenas não foram carregadas pelo Instagram.
+Uma coleta incompleta nunca substitui o último snapshot válido. **Quem deixou de me seguir** depende de histórico; **Não me seguem** depende somente das coleções atuais.

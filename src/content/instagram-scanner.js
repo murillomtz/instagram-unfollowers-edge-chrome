@@ -9,8 +9,8 @@
   const USERNAME_PATTERN = /^[a-zA-Z0-9._]{1,30}$/;
   const MAX_SCAN_MS = 30 * 60 * 1000;
   const API_PAGE_SIZE = 50;
-  const API_DELAY_MIN_MS = 3000;
-  const API_DELAY_MAX_MS = 5000;
+  const API_DELAY_MIN_MS = 1500;
+  const API_DELAY_MAX_MS = 3000;
 
   let running = false;
   let cancelled = false;
@@ -38,7 +38,7 @@
     showOverlay("Preparando a varredura…", 0, null);
 
     try {
-      await runScan();
+      await runScan(session.mode);
     } catch (error) {
       if (!cancelled) {
         const message = error instanceof Error ? error.message : String(error);
@@ -51,7 +51,7 @@
     }
   }
 
-  async function runScan() {
+  async function runScan(mode = "unfollowers") {
     if (isLoginRequired()) {
       await progress("login_required", "Faça login no Instagram. A verificação continuará automaticamente.");
       updateOverlay("Faça login no Instagram. Depois, aguarde a continuação automática.", 0, null);
@@ -72,15 +72,20 @@
     const apiContext = discoverInstagramApiContext();
     if (apiContext) {
       try {
-        await progress("scanning", "Conectando à lista de seguidores…", 0, null, account);
-        const followers = await collectFollowersViaApi(apiContext, account);
-        await finishScan(account, followers);
+        await progress("scanning", "Conectando às listas do Instagram…", 0, null, account);
+        const relationships = await collectRelationshipsViaApi(apiContext, account, mode);
+        await finishScan(account, relationships.followers, relationships.following, mode);
         return;
       } catch (error) {
         if (cancelled) throw error;
+        if (mode === "nonFollowers") throw error;
         console.warn("Unfollow Local: coleta pela API interna indisponível; usando o modo visual.", error);
         await progress("opening_followers", "Tentando o modo visual do Instagram…", 0, null, account);
       }
+    }
+
+    if (mode === "nonFollowers") {
+      throw new Error("Não foi possível acessar as listas pela sessão do Instagram. Tente novamente mais tarde.");
     }
 
     if (!isOnProfile(account)) {
@@ -110,71 +115,105 @@
       account
     });
 
-    await finishScan(account, followers);
+    await finishScan(account, followers, null, mode);
   }
 
-  async function finishScan(account, followers) {
+  async function finishScan(account, followers, following, mode) {
     assertNotCancelled();
     await safeMessage({
       type: "SCAN_COMPLETE",
-      payload: { account, followers }
+      payload: { account, followers, following, mode }
     });
-    updateOverlay("Varredura concluída. Abrindo o resultado…", followers.length, followers.length);
+    const total = mode === "nonFollowers" ? (following?.length ?? 0) : followers.length;
+    updateOverlay("Varredura concluída. Abrindo o resultado…", total, total);
     setTimeout(removeOverlay, 2500);
   }
 
-  async function collectFollowersViaApi(apiContext, account) {
-    const collected = new Map();
-    const seenCursors = new Set();
-    const startedAt = Date.now();
-    let cursor = "";
-    let expected = null;
+  async function collectRelationshipsViaApi(apiContext, account, mode) {
+    let expectedFollowers = null;
+    let expectedFollowing = null;
 
     try {
       const profile = await fetchInstagramJson(
         `/api/v1/users/${encodeURIComponent(apiContext.userId)}/info/`,
         apiContext.headers
       );
-      const followerCount = Number(profile?.user?.follower_count);
-      if (Number.isSafeInteger(followerCount) && followerCount >= 0) expected = followerCount;
+      expectedFollowers = safeCount(profile?.user?.follower_count);
+      expectedFollowing = safeCount(profile?.user?.following_count);
     } catch (error) {
-      console.warn("Unfollow Local: não foi possível obter a contagem exata de seguidores.", error);
+      console.warn("Unfollow Local: não foi possível obter as contagens do perfil.", error);
     }
+
+    const report = async (relationship, count) => {
+      const label = relationship === "followers" ? "seguidores" : "contas seguidas";
+      const expected = relationship === "followers" ? expectedFollowers : expectedFollowing;
+      await progress(
+        "scanning",
+        `Analisando ${label}: ${formatNumber(count)}`,
+        count,
+        expected,
+        account
+      );
+      updateOverlay(`Analisando ${label}…`, count, expected);
+    };
+
+    const followers = await collectRelationshipViaApi({
+      apiContext,
+      account,
+      relationship: "followers",
+      expected: expectedFollowers,
+      onProgress: report
+    });
+    let following = null;
+    if (mode === "nonFollowers") {
+      await report("following", 0);
+      await sleep(randomBetween(API_DELAY_MIN_MS, API_DELAY_MAX_MS));
+      following = await collectRelationshipViaApi({
+        apiContext,
+        account,
+        relationship: "following",
+        expected: expectedFollowing,
+        onProgress: report
+      });
+    }
+
+    return { followers, following };
+  }
+
+  async function collectRelationshipViaApi({ apiContext, account, relationship, expected, onProgress }) {
+    const collected = new Map();
+    const seenCursors = new Set();
+    const startedAt = Date.now();
+    let cursor = "";
 
     while (Date.now() - startedAt < MAX_SCAN_MS) {
       assertNotCancelled();
-      const url = new URL(`/api/v1/friendships/${encodeURIComponent(apiContext.userId)}/followers/`, location.origin);
+      const url = new URL(
+        `/api/v1/friendships/${encodeURIComponent(apiContext.userId)}/${relationship}/`,
+        location.origin
+      );
       url.searchParams.set("count", String(API_PAGE_SIZE));
+      if (relationship === "followers") url.searchParams.set("search_surface", "follow_list_page");
+      if (relationship === "following") url.searchParams.set("order", "date_followed_latest");
       if (cursor) url.searchParams.set("max_id", cursor);
 
       const page = await fetchInstagramJson(url.href, apiContext.headers);
       for (const user of Array.isArray(page?.users) ? page.users : []) {
         const follower = followerFromApiUser(user, account);
-        if (follower) collected.set(follower.username, follower);
+        if (!follower) continue;
+        const identity = follower.id ? `id:${follower.id}` : `username:${follower.username}`;
+        collected.set(identity, follower);
       }
-
-      await progress(
-        "scanning",
-        expected !== null
-          ? `Coletando seguidores: ${collected.size} de ${formatNumber(expected)}`
-          : `Coletando seguidores: ${collected.size}`,
-        collected.size,
-        expected,
-        account
-      );
-      updateOverlay("Verificando seguidores pela conexão do Instagram…", collected.size, expected);
+      await onProgress(relationship, collected.size);
 
       const nextCursor = page?.next_max_id == null ? "" : String(page.next_max_id);
       if (!nextCursor) {
-        validateCompleteness(
-          collected.size,
-          expected === null ? null : { value: expected, exact: true }
-        );
+        validateApiCompleteness(collected.size, expected, relationship);
         return [...collected.values()];
       }
 
       if (seenCursors.has(nextCursor)) {
-        throw new Error("O Instagram repetiu uma página da lista; o snapshot anterior foi preservado.");
+        throw new Error("O Instagram repetiu uma página da lista. Tente novamente mais tarde.");
       }
       seenCursors.add(nextCursor);
       cursor = nextCursor;
@@ -197,7 +236,8 @@
     const headers = {
       "accept": "*/*",
       "content-type": "application/x-www-form-urlencoded",
-      "x-asbd-id": "129477",
+      "x-asbd-id": "359341",
+      "x-ig-max-touch-points": "0",
       "x-requested-with": "XMLHttpRequest"
     };
     const csrfToken = readCookie("csrftoken") || firstMatch(source, [
@@ -231,10 +271,28 @@
         headers,
         signal: controller.signal
       });
-      if (!response.ok) {
-        throw new Error(`O Instagram recusou a consulta (HTTP ${response.status}).`);
+      if (/\/accounts\/login|\/challenge/.test(response.url)) {
+        throw new Error("Sua sessão expirou ou o Instagram solicitou uma verificação de segurança.");
       }
-      return await response.json();
+      if (!response.ok) {
+        if (response.status === 429) {
+          throw new Error("O Instagram limitou temporariamente as consultas. Aguarde e tente novamente.");
+        }
+        if ([401, 403].includes(response.status)) {
+          throw new Error("O Instagram recusou a sessão. Faça login novamente e tente de novo.");
+        }
+        throw new Error(`O Instagram recusou a consulta (status ${response.status}).`);
+      }
+      try {
+        return await response.json();
+      } catch {
+        throw new Error("O Instagram retornou uma resposta inesperada. Tente novamente mais tarde.");
+      }
+    } catch (error) {
+      if (error?.name === "AbortError") {
+        throw new Error("O Instagram demorou demais para responder. Tente novamente.");
+      }
+      throw error;
     } finally {
       clearTimeout(timeout);
     }
@@ -244,11 +302,38 @@
     const username = String(user?.username ?? "").trim().toLowerCase();
     if (!validUsername(username) || username === account.toLowerCase()) return null;
     return {
+      id: String(user?.pk ?? user?.pk_id ?? "").trim(),
       username,
       name: String(user?.full_name ?? "").trim(),
       avatarUrl: String(user?.profile_pic_url ?? "").trim(),
       profileUrl: `https://www.instagram.com/${encodeURIComponent(username)}/`
     };
+  }
+
+  function safeCount(value) {
+    const count = Number(value);
+    return Number.isSafeInteger(count) && count >= 0 ? count : null;
+  }
+
+  function validateApiCompleteness(collected, expected, relationship) {
+    const label = relationship === "followers" ? "seguidores" : "contas seguidas";
+    if (expected === null) {
+      if (collected === 0) {
+        throw new Error(`O Instagram não retornou ${label}. Tente novamente mais tarde.`);
+      }
+      return;
+    }
+    if (relationship === "following") {
+      const tolerance = Math.max(2, Math.ceil(expected * 0.01));
+      if (Math.abs(collected - expected) <= tolerance) return;
+    } else if (collected === expected) {
+      return;
+    }
+    if (collected !== expected) {
+      throw new Error(
+        `Coleta incompleta de ${label}: eram esperados ${expected}, mas foram recebidos ${collected}.`
+      );
+    }
   }
 
   function firstMatch(source, patterns) {

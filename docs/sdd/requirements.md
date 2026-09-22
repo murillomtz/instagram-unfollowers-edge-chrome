@@ -1,53 +1,55 @@
-# Requisitos — V1
+# Requisitos — V1.2.1
 
 ## Objetivo
 
-Permitir que o usuário compare duas listas completas de seguidores do próprio perfil do Instagram e veja somente as contas que estavam no snapshot anterior e não aparecem no snapshot atual.
+Exibir, sem backend, quem deixou de seguir a conta autenticada e quem ela segue atualmente sem receber follow de volta.
 
-## Escopo definido
+## Regras de negócio
 
-- Prioridade 1: Microsoft Edge.
-- Prioridade 2: Google Chrome.
-- Distribuição: uso pessoal, carregamento local sem loja.
-- Interface inicial: popup da extensão.
-- Resultado: somente quem deixou de seguir.
-- Persistência: último snapshot válido e último resultado.
-- Backend: inexistente.
-- Coleta: paginação da conexão interna usada pela página, com DOM e scroll automático como fallback.
-- Login: realizado diretamente no Instagram; a extensão não lê nem armazena senha.
+- `DEIXARAM_DE_SEGUIR = SNAPSHOT_ANTERIOR_SEGUIDORES - SEGUIDORES_ATUAIS`.
+- `NAO_ME_SEGUEM = SEGUINDO_ATUAL - SEGUIDORES_ATUAIS`.
+- As regras são independentes.
+- A identidade primária é o ID numérico do Instagram; username normalizado é fallback legado.
 
 ## Requisitos funcionais
 
-- RF01 — Exibir popup ao clicar no ícone.
-- RF02 — Iniciar a verificação pelo botão `Verificar agora`.
-- RF03 — Abrir ou reutilizar uma aba do Instagram.
-- RF04 — Aguardar o login quando necessário.
-- RF05 — Identificar o perfil autenticado e consultar sua lista de seguidores.
-- RF06 — Coletar `username`, nome, URL do avatar e URL do perfil.
-- RF07 — Deduplicar seguidores usando o `username` normalizado como chave.
-- RF08 — Salvar a primeira coleta apenas como linha de base.
-- RF09 — Nas coletas seguintes, calcular ausências do snapshot anterior em O(n).
-- RF10 — Mostrar nome, `@`, foto e link do perfil para cada ausência.
-- RF11 — Salvar dados no armazenamento local da extensão.
-- RF12 — Exibir progresso e permitir cancelamento.
-- RF13 — Não atualizar o snapshot quando a coleta for considerada incompleta.
+- RF01 — Exibir fotos de perfil quando disponíveis.
+- RF02 — Usar avatar padrão em qualquer falha de imagem.
+- RF03 — Usar o ícone fornecido em 16, 32, 48 e 128 pixels.
+- RF04 — Preservar **Quem deixou de me seguir**.
+- RF05 — Exibir **Não me seguem**.
+- RF06 — Paginar todos os seguidores.
+- RF07 — Paginar todas as contas seguidas.
+- RF08 — Comparar em O(n), sem duplicatas.
+- RF09 — Exibir o total de cada resultado.
+- RF10 — Exibir username, nome disponível e link do perfil.
+- RF11 — Preservar o snapshot necessário ao histórico.
+- RF12 — Mostrar progresso, cancelamento e erros compreensíveis.
+- RF13 — Não substituir o snapshot quando a coleta for incompleta.
+- RF14 — Manter o histórico pelo fallback visual quando a API interna falhar.
 
 ## Requisitos não funcionais
 
-- RNF01 — Manifest V3 e APIs Chromium compatíveis com Edge e Chrome.
-- RNF02 — Nenhum servidor, telemetria ou dependência externa.
-- RNF03 — Permissões mínimas: `storage`, `tabs` e host do Instagram.
-- RNF04 — Não usar coordenadas de tela ou Selenium; não contornar login nem consultar outra conta.
-- RNF05 — Separar coleta, comparação, persistência e apresentação.
-- RNF06 — Tratar alterações do DOM com mensagens de erro compreensíveis.
-- RNF07 — Não inserir HTML de dados coletados por `innerHTML` no dashboard.
+- RNF01 — Nenhum dado enviado a infraestrutura de terceiros.
+- RNF02 — Manifest V3 com menor privilégio.
+- RNF03 — Responsabilidades separadas por módulo.
+- RNF04 — Evitar chamadas duplicadas e espaçar a paginação.
+- RNF05 — Suportar milhares de usuários com `Map` e `Set`.
+- RNF06 — Não bloquear a interface.
+- RNF07 — Não expor stack traces na interface.
+- RNF08 — Sem dependências de produção ou scripts remotos.
+- RNF09 — Sem `innerHTML` para dados de usuário.
 
-## Fora do escopo da V1
+## Permissões mínimas
 
-- Histórico de várias verificações.
-- Exibição de novos seguidores.
-- Backup/importação.
-- Suporte a múltiplas redes sociais.
+- `storage`: snapshot, resultado e sessão de execução.
+- `https://www.instagram.com/*`: content script e consultas autenticadas.
+- `https://*.cdninstagram.com/*` e `https://*.fbcdn.net/*`: imagens de perfil validadas.
+
+## Fora do escopo
+
+- Deixar de seguir automaticamente.
+- Login adicional, senha ou exportação de cookies.
+- Backend, banco remoto, analytics ou telemetria.
+- Histórico de várias datas.
 - Publicação nas lojas.
-- Integração OAuth com a API oficial do Instagram.
-- Contas com quantidades extremamente grandes, cuja coleta visual pode sofrer limites da plataforma.

@@ -1,24 +1,30 @@
-# Design técnico — V1
+# Design técnico — V1.2.1
 
 ## Componentes
 
-1. `popup`: inicia/cancela o scan e mostra o último resumo.
-2. `service-worker`: coordena abas, sessão, comparação e persistência.
-3. `content-script`: consulta a lista paginada usada pela própria página e mantém a coleta visual como fallback.
-4. `core`: comparação pura, independente do navegador.
-5. `dashboard`: mostra a linha de base ou as contas ausentes.
+1. `popup`: inicia/cancela e mostra o resumo.
+2. `service-worker`: coordena abas, comparação, persistência e avatares.
+3. `content-script`: identifica a conta e pagina seguidores/seguindo.
+4. `core/follower-comparator`: normaliza identidades e executa as diferenças.
+5. `core/avatar-policy`: restringe host, protocolo, MIME e tamanho.
+6. `dashboard`: apresenta as duas análises e abre perfis.
 
 ## Fluxo principal
 
 1. O popup envia `START_SCAN`.
-2. O service worker cria uma sessão temporária e abre/reutiliza o Instagram.
-3. O content script identifica login e conta.
-4. O content script identifica o ID da conta autenticada no estado já entregue pelo Instagram.
-5. A lista é consultada em páginas de 50 registros e acumulada em um `Map` até o fim de `next_max_id`.
-6. Se a consulta interna estiver indisponível, abre o modal e executa a coleta visual com scroll.
-7. O content script envia `SCAN_COMPLETE` apenas após validar o fim e a contagem.
-8. O service worker compara o snapshot atual com o anterior.
-9. O snapshot atual substitui o anterior e o dashboard é aberto.
+2. O service worker abre ou reutiliza o Instagram.
+3. O content script identifica login, username e ID numérico.
+4. Consulta `/api/v1/users/{id}/info/` para as contagens.
+5. Em **Quem parou de me seguir**, pagina somente `/followers/`.
+6. Em **Quem não me segue de volta**, pagina `/followers/` e depois `/following/`, reiniciando o progresso entre as listas.
+7. Mapeia `pk`/`pk_id`, `username`, `full_name` e `profile_pic_url`.
+8. Valida as contagens antes de `SCAN_COMPLETE`.
+9. O worker calcula somente a análise solicitada e abre a aba correspondente no dashboard.
+10. O dashboard solicita fotos ao worker; ele valida a CDN e devolve uma URL de dados. Qualquer falha mantém o avatar padrão.
+
+## Fallback
+
+Somente no modo **Quem parou de me seguir**, se a consulta interna falhar, o content script pode percorrer visualmente a lista de seguidores. O modo **Quem não me segue de volta** nunca abre esse fallback, pois ele precisa das duas listas completas.
 
 ## Modelo persistido
 
@@ -30,32 +36,49 @@
     "total": 2,
     "followers": {
       "usuario": {
+        "id": "123456",
         "username": "usuario",
         "name": "Nome",
-        "avatarUrl": "https://...",
+        "avatarUrl": "https://cdn-da-meta/...",
         "profileUrl": "https://www.instagram.com/usuario/"
       }
     }
+  },
+  "lastScanResult": {
+    "removed": [],
+    "nonFollowers": [],
+    "nonFollowersAvailable": true
   }
 }
 ```
 
-## Integridade da coleta
+## Integridade e performance
 
-- Contagem exata retornada pelo perfil: o número coletado deve ser idêntico.
-- Contagem abreviada: o fim do scroll deve permanecer estável e o total deve ficar dentro de uma tolerância de 6%.
-- Sem contagem disponível: exige fim estável e pelo menos um usuário.
-- Timeout: 30 minutos.
-- Em qualquer falha, o snapshot anterior permanece intacto.
+- Coleções em `Map`; índices de IDs em `Set`.
+- Deduplicação por ID estável, com username como fallback.
+- Cursor repetido interrompe a coleta.
+- Timeout de request: 20 segundos; varredura: 30 minutos.
+- Atraso aleatório de 1,5 a 3 segundos entre páginas.
+- Seguidores exigem contagem exata para proteger o histórico.
+- Contas seguidas aceitam diferença final de até 1%, no mínimo duas contas, somente após o fim normal da paginação.
+- Coleta incompleta nunca substitui o snapshot válido.
+
+## Tratamento de erros
+
+- Login ausente/expirado e challenge: mensagem orientativa.
+- `401`/`403`: sessão recusada; `429`: limitação temporária.
+- JSON inválido, paginação repetida, timeout e contagem divergente: falha segura.
+- Avatar inválido, expirado ou maior que 2,5 MB: fallback local.
 
 ## Segurança e privacidade
 
-- Os dados permanecem em `chrome.storage.local`.
-- Estado transitório fica em `chrome.storage.session`.
-- A extensão reutiliza somente a sessão já autenticada na aba; cabeçalhos de sessão são transitórios e não são persistidos.
-- Nenhum dado é enviado para backend.
-- Links externos usam URL construída a partir de username validado.
+- Sem código remoto ou dependência de produção.
+- Cookies de sessão seguem somente ao Instagram com `credentials: include`.
+- CSRF e claim são transitórios e não persistidos.
+- Imagens somente por HTTPS das CDNs da Meta e MIME permitido.
+- Dados persistentes em `chrome.storage.local`; estado em `chrome.storage.session`.
+- Sem backend, analytics, tracker, WebSocket ou beacon.
 
-## Limitações conhecidas
+## Limitação arquitetural
 
-O endpoint utilizado pela própria página do Instagram não possui contrato público e pode mudar ou aplicar limitação. O fallback visual também depende de uma estrutura de DOM não estável. URLs de avatar podem expirar e, nesse caso, o dashboard mantém nome, username e link do perfil, mas a imagem pode deixar de carregar.
+A API web do Instagram é privada e pode mudar. Isso pode exigir manutenção futura, embora não envie dados a terceiros.

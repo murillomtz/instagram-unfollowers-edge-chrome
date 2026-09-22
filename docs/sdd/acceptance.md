@@ -1,40 +1,37 @@
-# Critérios de aceite — V1
+# Critérios de aceite — V1.2.1
 
-## Cenário 1 — Primeira execução
+## Histórico de unfollow
 
-- Dado que não existe snapshot para a conta;
-- quando uma varredura completa terminar;
-- então a lista será salva como linha de base;
-- e nenhuma pessoa será marcada como unfollow.
+- A primeira coleta completa cria a linha de base sem falso unfollow.
+- Uma conta presente antes e ausente agora aparece em **Quem deixou de me seguir**.
+- Uma coleta incompleta não altera o snapshot anterior.
+- Mudança de username não cria falso unfollow quando o ID está disponível.
 
-## Cenário 2 — Pessoa ausente
+## Não me seguem
 
-- Dado que `@ana` existe no snapshot anterior;
-- e não existe na coleta completa atual;
-- quando a comparação terminar;
-- então `@ana` será exibida no resultado com os dados preservados do snapshot anterior.
+- Com 100 seguidores, 120 seguindo e diferença de 20, o total exibido é 20.
+- Alguém que nunca seguiu a conta pode aparecer somente em **Não me seguem**.
+- Alguém que deixou de seguir e ainda é seguido pode aparecer nas duas áreas.
+- O cálculo usa estado atual e não depende do histórico.
+- Não existem duplicatas.
 
-## Cenário 3 — Novo seguidor
+## Fotos e perfis
 
-- Dado que `@bruno` não existia antes;
-- e aparece na coleta atual;
-- quando a comparação terminar;
-- então `@bruno` entrará no novo snapshot, mas não será mostrado na interface.
+- Foto válida de CDN da Meta é exibida.
+- Foto ausente, expirada, de host não permitido ou com erro usa fallback.
+- A listagem permanece funcional quando uma imagem falha.
+- O link abre o perfil correspondente.
 
-## Cenário 4 — Coleta incompleta
+## UX e robustez
 
-- Dado que o Instagram informa uma contagem exata;
-- e a extensão coleta uma quantidade diferente;
-- quando o scroll estabilizar;
-- então a varredura falhará;
-- e o último snapshot válido não será alterado.
+- As áreas têm títulos, totais, estados vazios e carregamento claros.
+- Erros técnicos são convertidos em mensagens compreensíveis.
+- A interface não bloqueia durante paginação ou imagens.
+- A extensão inicia em Edge e Chrome com Manifest V3.
 
-## Cenário 5 — Persistência
+## Segurança
 
-- Dado que existe um snapshot salvo;
-- quando Edge/Chrome ou o computador for reiniciado;
-- então o snapshot continuará disponível no mesmo perfil do navegador.
-
-## Cenário 6 — Privacidade
-
-- Durante todo o fluxo, nenhuma senha ou lista de seguidores será enviada para servidor externo.
+- Sem backend, analytics, trackers, bibliotecas remotas ou credenciais fixas.
+- Somente Instagram e CDNs da Meta aparecem no manifesto.
+- Sem permissões `cookies` ou `tabs`.
+- Dados sociais não são transmitidos a domínio externo à Meta.

@@ -9,8 +9,12 @@ const projectRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 test("manifesto usa V3 e somente as permissões previstas", async () => {
   const manifest = JSON.parse(await readFile(resolve(projectRoot, "manifest.json"), "utf8"));
   assert.equal(manifest.manifest_version, 3);
-  assert.deepEqual(manifest.permissions, ["storage", "tabs"]);
-  assert.deepEqual(manifest.host_permissions, ["https://www.instagram.com/*"]);
+  assert.deepEqual(manifest.permissions, ["storage"]);
+  assert.deepEqual(manifest.host_permissions, [
+    "https://www.instagram.com/*",
+    "https://*.cdninstagram.com/*",
+    "https://*.fbcdn.net/*"
+  ]);
 });
 
 test("todos os arquivos declarados no manifesto existem", async () => {
@@ -18,6 +22,8 @@ test("todos os arquivos declarados no manifesto existem", async () => {
   const paths = [
     manifest.background.service_worker,
     manifest.action.default_popup,
+    ...Object.values(manifest.icons ?? {}),
+    ...Object.values(manifest.action.default_icon ?? {}),
     ...manifest.content_scripts.flatMap((entry) => [...(entry.js ?? []), ...(entry.css ?? [])])
   ];
 
