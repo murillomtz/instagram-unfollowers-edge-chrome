@@ -5,6 +5,16 @@ Extensão local para Microsoft Edge e Google Chrome que mantém duas análises s
 - **Quem parou de me seguir:** compara o snapshot atual de seguidores com o anterior.
 - **Não me seguem:** calcula, no estado atual, `seguindo - seguidores`.
 
+**Categoria:** Extensão de navegador · Comparação de seguidores.
+
+## Tecnologias principais
+
+- JavaScript
+- Chrome Extension Manifest V3
+- APIs de armazenamento do navegador
+
+A comparação é feita por diferenças entre conjuntos e snapshots. Este projeto não utiliza modelos de IA ou aprendizado de máquina. O dashboard, o popup e a coleta fazem parte desta mesma extensão, sem backend separado.
+
 ## Versão
 
 `1.2.1` — dois fluxos independentes, progresso por lista e tolerância segura para pequenas divergências do contador de contas seguidas.
@@ -62,3 +72,13 @@ npm run check
 - Use com moderação e somente na sua própria conta.
 
 O SDD está em `docs/sdd/` e a auditoria completa em `docs/security-audit.md`.
+
+## Capturas da aplicação
+
+A execução completa precisa da extensão instalada em Chrome ou Edge e de uma sessão do próprio usuário no Instagram. O navegador disponível para a coleta em 12/10/2026 não oferecia o contexto de extensão nem as APIs de armazenamento necessárias. Abrir o arquivo de popup como uma página HTTP não executa a extensão completa.
+
+Por esse motivo, não foram adicionadas imagens de um popup isolado ou de um resultado simulado como se fossem capturas do sistema em funcionamento.
+
+## Histórico
+
+Repositório criado no GitHub em **2026-09-21**. Essa data identifica a criação do repositório; não comprova o início nem a conclusão do desenvolvimento.
