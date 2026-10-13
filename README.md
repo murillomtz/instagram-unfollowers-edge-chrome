@@ -75,9 +75,21 @@ O SDD está em `docs/sdd/` e a auditoria completa em `docs/security-audit.md`.
 
 ## Capturas da aplicação
 
-A execução completa precisa da extensão instalada em Chrome ou Edge e de uma sessão do próprio usuário no Instagram. O navegador disponível para a coleta em 12/10/2026 não oferecia o contexto de extensão nem as APIs de armazenamento necessárias. Abrir o arquivo de popup como uma página HTTP não executa a extensão completa.
+As duas capturas do dashboard foram fornecidas pelo usuário em 13/10/2026 e mostram as análises **Quem parou de me seguir** e **Não me seguem**. Nomes, @usuários, identificador da conta no cabeçalho e iniciais dos avatares foram borrados nas versões publicadas.
 
-Por esse motivo, não foram adicionadas imagens de um popup isolado ou de um resultado simulado como se fossem capturas do sistema em funcionamento.
+As imagens são versões editadas para ocultar identificadores. As contagens e a data de verificação exibidas pertencem ao estado fotografado; não representam uma consulta atual nem dados de demonstração. A coleta e a exatidão dos resultados não foram verificadas independentemente pelo agente.
+
+O dashboard foi identificado como uma página da extensão instalada no Edge. O controle automatizado não conseguiu acessar seu endereço `chrome-extension://`, pois a ferramenta aceita apenas HTTP e HTTPS. As capturas foram enviadas pelo usuário, sem substituir a extensão por um popup HTTP ou uma interface simulada.
+
+### Quem parou de me seguir
+
+![Dashboard de quem parou de seguir, com identificadores borrados](docs/screenshots/quem-parou-de-seguir.png)
+
+### Não me seguem
+
+Esta análise mostra as contas seguidas que não aparecem na lista atual de seguidores. Ela não comprova que uma pessoa nunca seguiu a conta.
+
+![Dashboard de contas que não seguem de volta, com identificadores borrados](docs/screenshots/nao-me-seguem.png)
 
 ## Histórico
 
