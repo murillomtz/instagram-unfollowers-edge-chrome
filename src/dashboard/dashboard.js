@@ -152,12 +152,12 @@ async function hydrateAvatar(container, user) {
   const image = document.createElement("img");
   image.className = "avatar-image";
   image.alt = `Foto de @${user.username}`;
-  image.src = dataUrl;
   image.addEventListener("error", () => image.remove(), { once: true });
   image.addEventListener("load", () => {
     container.textContent = "";
     container.append(image);
   }, { once: true });
+  image.src = dataUrl;
 }
 
 function scheduleAvatar(url) {

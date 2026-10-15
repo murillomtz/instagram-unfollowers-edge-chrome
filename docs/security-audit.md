@@ -1,5 +1,11 @@
 # Diagnóstico de segurança — V1.2.1
 
+## Adendo funcional — V1.2.2
+
+Fotos válidas passam a ser preservadas como bytes em Cache Storage local, além das URLs já presentes nos snapshots. A retenção é limitada a 20 MiB/1.000 imagens, com remoção das mais antigas. A coleta tenta baixá-las também na lista-base, com concorrência e tempo limitados; não garante preservar todas em contas grandes ou redes lentas. A política de hosts/MIME e o limite de 2,5 MB por imagem são mantidos, com timeout de oito segundos. Nenhuma nova permissão ou serviço externo foi adicionado. A análise abaixo descreve a V1.2.1; a persistência das imagens é a alteração de retenção da V1.2.2.
+
+Uma foto já baixada pode ser exibida sem consultar novamente a CDN. Cache sem espaço ou indisponível não invalida a coleta nem bloqueia a exibição de downloads válidos. Fotos antigas com URL expirada e sem bytes locais continuam indisponíveis. A atualização deve recarregar a mesma instalação; desinstalar remove os dados.
+
 ## Escopo e método
 
 Foram revisados `manifest.json`, service worker, content script, popup, dashboard, módulos centrais, dependências e todas as ocorrências de rede, cookies e armazenamento. Também foi feita busca por `fetch`, `XMLHttpRequest`, `WebSocket`, `sendBeacon`, `eval`, `new Function`, `document.cookie`, `chrome.cookies`, `chrome.storage`, `localStorage` e `indexedDB`.

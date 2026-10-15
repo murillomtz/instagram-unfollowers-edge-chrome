@@ -1,10 +1,13 @@
 import { compareFollowers, findNonFollowers, normalizeUsername, toFollowerMap } from "../core/follower-comparator.js";
 import { isAllowedAvatarUrl, isAllowedImageType } from "../core/avatar-policy.js";
+import { createAvatarStore } from "../core/avatar-store.js";
 
 const SESSION_KEY = "scanSession";
 const RESULT_KEY = "lastScanResult";
 const SNAPSHOT_PREFIX = "followersSnapshot:";
 const SCAN_MODES = new Set(["unfollowers", "nonFollowers"]);
+const avatarStore = createAvatarStore();
+const pendingAvatars = new Map();
 
 chrome.runtime.onInstalled.addListener(() => {
   chrome.storage.session.set({
@@ -163,6 +166,18 @@ async function completeScan(payload, tabId) {
   changes[RESULT_KEY] = result;
   await chrome.storage.local.set(changes);
 
+  await chrome.storage.session.set({
+    [SESSION_KEY]: { ...session, status: "scanning", message: "Listas salvas. Preservando fotos de perfil…" }
+  });
+  await preserveAvatars([
+    ...result.removed, ...result.nonFollowers,
+    ...(mode === "unfollowers" ? Object.values(currentFollowers) : [])
+  ]);
+
+  // Cancellation/new scans during photo preservation must not be overwritten.
+  const latest = await getSession();
+  if (latest.scanId !== session.scanId || latest.status === "cancelled") return { ok: true, result };
+
   const completedTotal = mode === "unfollowers"
     ? result.unfollowersCurrentTotal
     : result.followingTotal;
@@ -189,25 +204,62 @@ async function completeScan(payload, tabId) {
 
 async function loadAvatar(rawUrl) {
   if (!isAllowedAvatarUrl(rawUrl)) return { ok: false };
+  if (pendingAvatars.has(rawUrl)) return pendingAvatars.get(rawUrl);
+  const request = readAvatar(rawUrl).catch(() => ({ ok: false }));
+  pendingAvatars.set(rawUrl, request);
+  try {
+    return await request;
+  } finally {
+    pendingAvatars.delete(rawUrl);
+  }
+}
 
-  const response = await fetch(rawUrl, {
-    method: "GET",
-    credentials: "omit",
-    cache: "force-cache",
-    referrerPolicy: "no-referrer"
-  });
-  if (!response.ok) return { ok: false };
+async function readAvatar(rawUrl) {
+  const cached = await avatarStore.get(rawUrl);
+  if (cached) return avatarResponse(await cached.arrayBuffer(), cached.headers.get("content-type"));
 
-  const contentType = response.headers.get("content-type") ?? "";
-  const declaredSize = Number(response.headers.get("content-length") ?? 0);
-  if (!isAllowedImageType(contentType) || declaredSize > 2_500_000) return { ok: false };
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 8000);
+  try {
+    const response = await fetch(rawUrl, {
+      method: "GET",
+      credentials: "omit",
+      cache: "force-cache",
+      referrerPolicy: "no-referrer",
+      signal: controller.signal
+    });
+    if (!response.ok) return { ok: false };
 
-  const buffer = await response.arrayBuffer();
-  if (buffer.byteLength > 2_500_000) return { ok: false };
+    const contentType = (response.headers.get("content-type") ?? "").split(";")[0].trim().toLowerCase();
+    const declaredSize = Number(response.headers.get("content-length") ?? 0);
+    if (!isAllowedImageType(contentType) || declaredSize > 2_500_000) return { ok: false };
+
+    const buffer = await response.arrayBuffer();
+    const result = avatarResponse(buffer, contentType);
+    if (result.ok) await avatarStore.put(rawUrl, buffer, contentType);
+    return result;
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+function avatarResponse(buffer, contentType) {
+  if (!isAllowedImageType(contentType) || !buffer.byteLength || buffer.byteLength > 2_500_000) return { ok: false };
   return {
     ok: true,
     dataUrl: `data:${contentType.split(";")[0]};base64,${arrayBufferToBase64(buffer)}`
   };
+}
+
+async function preserveAvatars(users) {
+  const urls = [...new Set(users.map((user) => user.avatarUrl).filter(isAllowedAvatarUrl))].slice(0, 1000);
+  const deadline = Date.now() + 20_000;
+  let index = 0;
+  await Promise.all(Array.from({ length: Math.min(4, urls.length) }, async () => {
+    while (index < urls.length && Date.now() < deadline) {
+      await loadAvatar(urls[index++]);
+    }
+  }));
 }
 
 function arrayBufferToBase64(buffer) {

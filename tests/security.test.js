@@ -9,6 +9,7 @@ const sourceFiles = [
   "src/background/service-worker.js",
   "src/content/instagram-scanner.js",
   "src/core/avatar-policy.js",
+  "src/core/avatar-store.js",
   "src/core/follower-comparator.js",
   "src/dashboard/dashboard.js",
   "src/popup/popup.js"

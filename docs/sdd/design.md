@@ -1,4 +1,4 @@
-# Design técnico — V1.2.1
+# Design técnico — V1.2.2
 
 ## Componentes
 
@@ -8,6 +8,7 @@
 4. `core/follower-comparator`: normaliza identidades e executa as diferenças.
 5. `core/avatar-policy`: restringe host, protocolo, MIME e tamanho.
 6. `dashboard`: apresenta as duas análises e abre perfis.
+7. `core/avatar-store`: persiste bytes das fotos em Cache Storage, com gravações serializadas e limites de 20 MiB/1.000 entradas.
 
 ## Fluxo principal
 
@@ -20,7 +21,8 @@
 7. Mapeia `pk`/`pk_id`, `username`, `full_name` e `profile_pic_url`.
 8. Valida as contagens antes de `SCAN_COMPLETE`.
 9. O worker calcula somente a análise solicitada e abre a aba correspondente no dashboard.
-10. O dashboard solicita fotos ao worker; ele valida a CDN e devolve uma URL de dados. Qualquer falha mantém o avatar padrão.
+10. Após salvar os dados, o worker tenta preservar fotos dos resultados e da lista-base: até 1.000 URLs, concorrência de quatro, janela de 20 segundos e timeout de oito segundos por download. Falhas de foto não invalidam a coleta.
+11. O dashboard solicita fotos ao worker; ele valida a CDN, consulta os bytes locais antes da rede e devolve uma URL de dados. Downloads válidos também alimentam o cache. Qualquer falha mantém o avatar padrão.
 
 ## Fallback
 
@@ -68,7 +70,8 @@ Somente no modo **Quem parou de me seguir**, se a consulta interna falhar, o con
 - Login ausente/expirado e challenge: mensagem orientativa.
 - `401`/`403`: sessão recusada; `429`: limitação temporária.
 - JSON inválido, paginação repetida, timeout e contagem divergente: falha segura.
-- Avatar inválido, expirado ou maior que 2,5 MB: fallback local.
+- Avatar inválido, maior que 2,5 MB ou expirado sem cópia local: fallback local.
+- Cache indisponível/sem quota: exibe a imagem obtida da rede sem comprometer o snapshot.
 
 ## Segurança e privacidade
 
@@ -76,9 +79,11 @@ Somente no modo **Quem parou de me seguir**, se a consulta interna falhar, o con
 - Cookies de sessão seguem somente ao Instagram com `credentials: include`.
 - CSRF e claim são transitórios e não persistidos.
 - Imagens somente por HTTPS das CDNs da Meta e MIME permitido.
-- Dados persistentes em `chrome.storage.local`; estado em `chrome.storage.session`.
+- Snapshots em `chrome.storage.local`; imagens binárias em Cache Storage; estado em `chrome.storage.session`.
 - Sem backend, analytics, tracker, WebSocket ou beacon.
 
 ## Limitação arquitetural
 
 A API web do Instagram é privada e pode mudar. Isso pode exigir manutenção futura, embora não envie dados a terceiros.
+
+O cache tem retenção limitada: remove imagens antigas ao atingir o orçamento e pode sofrer eviction pelo navegador. URLs antigas que expiraram antes de serem baixadas não são recuperáveis pelo snapshot. O formato JSON existente é mantido, sem migração destrutiva. A atualização deve recarregar a mesma instalação, preservando seu ID.

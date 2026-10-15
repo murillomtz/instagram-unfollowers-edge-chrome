@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "Unfollow Local para Instagram",
   "description": "Mostra quem deixou de seguir e quem não segue você de volta, com processamento local.",
-  "version": "1.2.1",
+  "version": "1.2.2",
   "minimum_chrome_version": "102",
   "permissions": [
     "storage"

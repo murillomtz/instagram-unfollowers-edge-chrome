@@ -17,7 +17,7 @@ A comparação é feita por diferenças entre conjuntos e snapshots. Este projet
 
 ## Versão
 
-`1.2.1` — dois fluxos independentes, progresso por lista e tolerância segura para pequenas divergências do contador de contas seguidas.
+`1.2.2` — preservação local das fotos para que resultados salvos não dependam apenas de URLs temporárias da CDN.
 
 ## Como instalar
 
@@ -28,7 +28,7 @@ A comparação é feita por diferenças entre conjuntos e snapshots. Este projet
 5. Selecione a pasta extraída que contém o `manifest.json`.
 6. Fixe a extensão na barra do navegador.
 
-Ao atualizar uma instalação anterior, remova a versão carregada sem compactação e carregue novamente esta pasta.
+Ao atualizar uma instalação carregada sem compactação, substitua os arquivos na mesma pasta e clique em **Recarregar** no cartão da extensão. Mantenha o mesmo ID e não desinstale: a remoção apaga os dados locais e o histórico. Feche dashboards antigos e abra o resultado novamente pelo popup.
 
 ## Como usar
 
@@ -42,7 +42,11 @@ Na primeira execução, a extensão cria a linha de base de seguidores. A análi
 
 ## Fotos de perfil
 
-A URL de `profile_pic_url` retornada pelo Instagram é validada e carregada somente de CDNs da Meta (`cdninstagram.com` e `fbcdn.net`). A imagem é convertida localmente para uma URL de dados, evitando que o dashboard dependa diretamente de CORS. URLs expiradas, respostas inválidas ou imagens indisponíveis usam automaticamente o avatar padrão.
+A URL de `profile_pic_url` retornada pelo Instagram é validada e carregada somente de CDNs da Meta (`cdninstagram.com` e `fbcdn.net`). Os bytes da imagem são preservados no Cache Storage da extensão, separados dos snapshots. Ao reabrir o dashboard, o worker procura primeiro a cópia local e a converte para uma URL de dados, inclusive quando o endereço original expirou ou a rede está indisponível.
+
+A coleta tenta preservar fotos dos resultados e da lista-base de seguidores antes de concluir. São até quatro downloads simultâneos, até 1.000 URLs por coleta e uma janela de 20 segundos para iniciar downloads (cada pedido tem timeout de 8 segundos). O cache guarda até 1.000 fotos ou 20 MiB de imagens; ao atingir um limite, remove as cópias mais antigas. Assim, contas grandes ou redes lentas podem ter fotos não preservadas. Fotos carregadas pelo dashboard também entram no cache.
+
+Na versão anterior, somente as URLs eram persistidas; a conversão da foto para data URL acontecia em memória. Fotos antigas sem cópia local e com URL expirada não podem ser recuperadas desse histórico. Uma nova coleta traz URLs atuais para as contas que ainda aparecem nas listas. Falhas de download/armazenamento não apagam o snapshot, e imagens indisponíveis continuam usando a inicial do perfil. A cópia local não é um backup: pode ser removida pelos limites do cache, por pressão de armazenamento do navegador ou pela desinstalação.
 
 ## Privacidade
 
@@ -51,6 +55,7 @@ A URL de `profile_pic_url` retornada pelo Instagram é validada e carregada some
 - O cookie CSRF e o claim da sessão são lidos apenas durante a consulta e não são persistidos.
 - Cookies de autenticação acompanham somente requisições feitas ao próprio Instagram.
 - Snapshots e o último resultado ficam em `chrome.storage.local`.
+- Cópias das fotos ficam no Cache Storage local da extensão, com retenção limitada.
 - Estado de execução fica em `chrome.storage.session`.
 
 ## Proteção contra falso positivo
