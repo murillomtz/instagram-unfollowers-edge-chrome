@@ -17,6 +17,8 @@ A comparação é feita por diferenças entre conjuntos e snapshots. Este projet
 
 ## Versão
 
+`1.4.0` — histórico acumulado de quem parou de seguir (apagar um/todos), selo "Novo" em quem não me segue, botão "Verificar os dois" e foto/@ clicáveis.
+
 `1.3.0` — nova seção na aba de quem parou de seguir para contas que desapareceram das listas de seguidores e seguindo entre duas verificações completas.
 
 ## Como instalar
