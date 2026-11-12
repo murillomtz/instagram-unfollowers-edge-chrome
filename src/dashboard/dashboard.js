@@ -167,10 +167,10 @@ function renderNonFollowers(data) {
     elements.nonFollowersCount.textContent = `${formatNumber(users.length)} usuário(s)`;
     const fresh = new Set(Array.isArray(data.nonFollowersNew) ? data.nonFollowersNew : []);
     if (fresh.size > 0) {
-      elements.newNonFollowers.textContent = `+${formatNumber(fresh.size)} novo(s) desde a última verificação`;
+      elements.newNonFollowers.textContent = `+${formatNumber(fresh.size)} novo(s) desde a última verificação: ${[...fresh].map((name) => `@${name}`).join(", ")}`;
       elements.newNonFollowers.classList.remove("hidden");
     }
-    renderUsers(elements.nonFollowersList, users, fresh);
+    renderUsers(elements.nonFollowersList, [...users].sort((x, y) => Number(fresh.has(y.username)) - Number(fresh.has(x.username))), fresh);
   }
 }
 
