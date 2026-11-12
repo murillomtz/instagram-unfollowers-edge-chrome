@@ -121,3 +121,33 @@ test("URL renovada é baixada sem reutilizar a foto antiga", async (t) => {
   assert.equal(updated.ok, true);
   assert.equal(app.requests(), 2);
 });
+
+
+test("compara desaparecimento das duas listas e protege históricos sem seguindo", async (t) => {
+  const app = await setup(t);
+  const mutual = { id: "10", username: "mutual" };
+  const stillFollowing = { id: "20", username: "still_following" };
+  const neverFollowed = { id: "30", username: "never_followed" };
+  const scan = (followers, following) => app.send({ type: "SCAN_COMPLETE", payload: {
+    account: "conta", followers, following
+  } });
+  const baseline = await scan([mutual, stillFollowing, neverFollowed], [mutual, stillFollowing]);
+  assert.equal(baseline.result.disconnectedAvailable, false);
+  const next = await scan([], [stillFollowing]);
+  assert.equal(next.result.disconnectedAvailable, true);
+  assert.deepEqual(next.result.disconnected.map((user) => user.id), ["10"]);
+  assert.equal(next.result.removed.length, 3);
+  // Scanning the other tab must not replace this comparison or its baseline.
+  app.session.scanSession.mode = "nonFollowers";
+  const other = await scan([], []);
+  assert.deepEqual(other.result.disconnected, next.result.disconnected);
+  app.session.scanSession.mode = "unfollowers";
+  const visual = await scan([]);
+  assert.equal(visual.result.disconnectedAvailable, false);
+  assert.deepEqual(visual.result.disconnected, []);
+  const afterVisual = await scan([], []);
+  assert.equal(afterVisual.result.disconnectedAvailable, false);
+  const complete = await scan([], []);
+  assert.equal(complete.result.disconnectedAvailable, true);
+  assert.deepEqual(complete.result.disconnected, []);
+});

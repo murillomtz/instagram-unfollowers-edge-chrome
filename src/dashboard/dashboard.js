@@ -4,7 +4,9 @@ const avatarCache = new Map();
 const avatarQueue = [];
 const MAX_AVATAR_REQUESTS = 4;
 let activeAvatarRequests = 0;
+const HISTORY_PREFIX = "unfollowHistory:";
 let activeTab = "unfollowers";
+let history = {};
 
 const elements = {
   subtitle: document.querySelector("#subtitle"),
@@ -21,6 +23,10 @@ const elements = {
   unfollowersResults: document.querySelector("#unfollowersResults"),
   unfollowersCount: document.querySelector("#unfollowersCount"),
   unfollowersList: document.querySelector("#unfollowersList"),
+  disconnectedSection: document.querySelector("#disconnectedSection"),
+  disconnectedCount: document.querySelector("#disconnectedCount"),
+  disconnectedStatus: document.querySelector("#disconnectedStatus"),
+  disconnectedList: document.querySelector("#disconnectedList"),
   nonFollowersTotal: document.querySelector("#nonFollowersTotal"),
   followingTotal: document.querySelector("#followingTotal"),
   followersTotal: document.querySelector("#followersTotal"),
@@ -30,13 +36,30 @@ const elements = {
   nonFollowersCount: document.querySelector("#nonFollowersCount"),
   nonFollowersList: document.querySelector("#nonFollowersList"),
   missingResult: document.querySelector("#missingResult"),
-  scanAgain: document.querySelector("#scanAgain")
+  scanAgain: document.querySelector("#scanAgain"),
+  scanBoth: document.querySelector("#scanBoth"),
+  historySection: document.querySelector("#historySection"),
+  historyCount: document.querySelector("#historyCount"),
+  historyList: document.querySelector("#historyList"),
+  clearHistory: document.querySelector("#clearHistory"),
+  newNonFollowers: document.querySelector("#newNonFollowers")
 };
 
 elements.scanAgain.addEventListener("click", () => {
   chrome.runtime.sendMessage({ type: "START_SCAN", mode: activeTab });
 });
+elements.scanBoth.addEventListener("click", () => {
+  chrome.runtime.sendMessage({ type: "START_SCAN", mode: "both" });
+});
+elements.clearHistory.addEventListener("click", async () => {
+  if (!confirm("Apagar todo o histórico de quem parou de seguir? Esta ação não pode ser desfeita.")) return;
+  await saveHistory({});
+});
 elements.tabButtons.forEach((button) => button.addEventListener("click", () => selectTab(button.dataset.tab)));
+if (result?.account) {
+  const key = `${HISTORY_PREFIX}${result.account}`;
+  history = (await chrome.storage.local.get(key))[key] ?? {};
+}
 render(result);
 
 function render(data) {
@@ -49,6 +72,8 @@ function render(data) {
   elements.tabs.classList.remove("hidden");
   elements.unfollowersPanel.classList.remove("hidden");
   renderUnfollowers(data);
+  renderHistory();
+  renderDisconnected(data);
   renderNonFollowers(data);
   const requestedTab = new URLSearchParams(location.search).get("tab");
   selectTab(requestedTab === "nonFollowers" || requestedTab === "unfollowers"
@@ -79,6 +104,50 @@ function renderUnfollowers(data) {
   }
 }
 
+function renderHistory() {
+  const entries = Object.values(history).sort((a, b) => String(b.detectedAt).localeCompare(String(a.detectedAt)));
+  elements.historySection.classList.toggle("hidden", entries.length === 0);
+  elements.historyCount.textContent = `${formatNumber(entries.length)} usuário(s)`;
+  elements.historyList.textContent = "";
+  entries.forEach((entry) => {
+    const row = createUserRow(entry.user, { note: `Detectado em ${formatDate(entry.detectedAt)}` });
+    const remove = document.createElement("button");
+    remove.type = "button";
+    remove.className = "ghost-danger small";
+    remove.textContent = "Apagar";
+    remove.addEventListener("click", async () => {
+      const next = { ...history };
+      delete next[entry.user.username];
+      await saveHistory(next);
+    });
+    row.append(remove);
+    elements.historyList.append(row);
+  });
+}
+
+async function saveHistory(next) {
+  history = next;
+  await chrome.storage.local.set({ [`${HISTORY_PREFIX}${result.account}`]: next });
+  renderHistory();
+}
+
+function renderDisconnected(data) {
+  if (!(data.unfollowersAvailable === true || data.currentTotal != null)) return;
+  elements.disconnectedSection.classList.remove("hidden");
+  if (!data.disconnectedAvailable) {
+    elements.disconnectedCount.textContent = "Indisponível";
+    elements.disconnectedStatus.textContent = "São necessárias duas verificações consecutivas com as listas completas de seguidores e seguindo. Históricos antigos e o modo visual não contêm esses dados.";
+    return;
+  }
+  const users = Array.isArray(data.disconnected) ? data.disconnected : [];
+  elements.disconnectedCount.textContent = `${formatNumber(users.length)} usuário(s)`;
+  elements.disconnectedStatus.textContent = users.length ? "Comparação com a verificação anterior." : "Nenhuma conta sumiu das duas listas nesta comparação.";
+  if (users.length) {
+    elements.disconnectedList.classList.remove("hidden");
+    renderUsers(elements.disconnectedList, users);
+  }
+}
+
 function renderNonFollowers(data) {
   const users = Array.isArray(data.nonFollowers) ? data.nonFollowers : [];
   const available = data.nonFollowersAvailable === true;
@@ -96,7 +165,12 @@ function renderNonFollowers(data) {
   } else {
     elements.nonFollowersResults.classList.remove("hidden");
     elements.nonFollowersCount.textContent = `${formatNumber(users.length)} usuário(s)`;
-    renderUsers(elements.nonFollowersList, users);
+    const fresh = new Set(Array.isArray(data.nonFollowersNew) ? data.nonFollowersNew : []);
+    if (fresh.size > 0) {
+      elements.newNonFollowers.textContent = `+${formatNumber(fresh.size)} novo(s) desde a última verificação`;
+      elements.newNonFollowers.classList.remove("hidden");
+    }
+    renderUsers(elements.nonFollowersList, users, fresh);
   }
 }
 
@@ -112,30 +186,59 @@ function selectTab(tab) {
   });
 }
 
-function renderUsers(container, users) {
-  users.forEach((user) => container.append(createUserRow(user)));
+function renderUsers(container, users, fresh = new Set()) {
+  users.forEach((user) => container.append(createUserRow(user, { isNew: fresh.has(user.username) })));
 }
 
-function createUserRow(user) {
+function profileHref(user) {
+  return `https://www.instagram.com/${encodeURIComponent(user.username)}/`;
+}
+
+function createUserRow(user, { isNew = false, note = "" } = {}) {
   const row = document.createElement("article");
   row.className = "person";
   const avatar = createAvatarFallback(user.username);
   if (user.avatarUrl) void hydrateAvatar(avatar, user);
+  const avatarLink = document.createElement("a");
+  avatarLink.className = "avatar-link";
+  avatarLink.href = profileHref(user);
+  avatarLink.target = "_blank";
+  avatarLink.rel = "noreferrer";
+  avatarLink.setAttribute("aria-label", `Abrir perfil de @${user.username}`);
+  avatarLink.append(avatar);
 
   const identity = document.createElement("div");
   identity.className = "identity";
   const username = document.createElement("strong");
-  username.textContent = `@${user.username}`;
+  const handle = document.createElement("a");
+  handle.className = "handle";
+  handle.href = profileHref(user);
+  handle.target = "_blank";
+  handle.rel = "noreferrer";
+  handle.textContent = `@${user.username}`;
+  username.append(handle);
+  if (isNew) {
+    const badge = document.createElement("em");
+    badge.className = "badge-new";
+    badge.textContent = "Novo";
+    username.append(badge);
+  }
   const name = document.createElement("span");
   name.textContent = user.name || "Nome não disponível";
   identity.append(username, name);
+  if (note) {
+    const noteEl = document.createElement("span");
+    noteEl.textContent = note;
+    identity.append(noteEl);
+  }
 
   const link = document.createElement("a");
-  link.href = user.profileUrl || `https://www.instagram.com/${encodeURIComponent(user.username)}/`;
+  link.className = "open-profile";
+  link.href = profileHref(user);
   link.target = "_blank";
   link.rel = "noreferrer";
   link.textContent = "Abrir perfil";
-  row.append(avatar, identity, link);
+  row.append(avatarLink, identity, link);
   return row;
 }
 

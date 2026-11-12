@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { compareFollowers, findNonFollowers, normalizeUsername, toFollowerMap } from "../src/core/follower-comparator.js";
+import { compareFollowers, findDisconnectedUsers, findNonFollowers, normalizeUsername, toFollowerMap } from "../src/core/follower-comparator.js";
 
 test("normaliza @ e caixa do username", () => {
   assert.equal(normalizeUsername(" @Murillo.MTZ "), "murillo.mtz");
@@ -81,4 +81,29 @@ test("pode aparecer em unfollow e não me seguem", () => {
   const following = toFollowerMap([{ id: "2", username: "bruno" }]);
   assert.deepEqual(compareFollowers(previous, current).map((item) => item.username), ["bruno"]);
   assert.deepEqual(findNonFollowers(current, following).map((item) => item.username), ["bruno"]);
+});
+
+
+test("desaparecimento nos dois sentidos respeita IDs e renomeações", () => {
+  const old = toFollowerMap([{ id: "42", username: "antigo" }]);
+  const renamed = toFollowerMap([{ id: "42", username: "novo" }]);
+  assert.deepEqual(findDisconnectedUsers(old, {}, old, renamed), []);
+  assert.deepEqual(findDisconnectedUsers(old, renamed, old, {}), []);
+  assert.deepEqual(findDisconnectedUsers(old, {}, old, {}).map((user) => user.id), ["42"]);
+  assert.deepEqual(findDisconnectedUsers(old, {}, {}, {}), []);
+});
+
+import { findNewUsers, mergeUnfollowHistory } from "../src/core/follower-comparator.js";
+
+test("histórico acumula unfollows e remove quem voltou a seguir", () => {
+  const first = mergeUnfollowHistory({}, [{ username: "ana" }, { username: "bia" }], {}, "2026-01-01");
+  assert.deepEqual(Object.keys(first).sort(), ["ana", "bia"]);
+  const second = mergeUnfollowHistory(first, [{ username: "caio" }], { bia: { username: "bia" } }, "2026-02-01");
+  assert.deepEqual(Object.keys(second).sort(), ["ana", "caio"]);
+  assert.equal(second.ana.detectedAt, "2026-01-01");
+  assert.equal(second.caio.detectedAt, "2026-02-01");
+});
+
+test("findNewUsers retorna só quem não estava na lista anterior", () => {
+  assert.deepEqual(findNewUsers([{ username: "a" }], [{ username: "a" }, { username: "B" }]), ["b"]);
 });

@@ -17,7 +17,7 @@ A comparação é feita por diferenças entre conjuntos e snapshots. Este projet
 
 ## Versão
 
-`1.2.2` — preservação local das fotos para que resultados salvos não dependam apenas de URLs temporárias da CDN.
+`1.3.0` — nova seção na aba de quem parou de seguir para contas que desapareceram das listas de seguidores e seguindo entre duas verificações completas.
 
 ## Como instalar
 
@@ -39,6 +39,14 @@ Ao atualizar uma instalação carregada sem compactação, substitua os arquivos
 5. O dashboard abrirá diretamente na análise escolhida.
 
 Na primeira execução, a extensão cria a linha de base de seguidores. A análise **Não me seguem** já fica disponível na primeira coleta completa.
+
+## Relação encerrada nos dois sentidos
+
+Na aba **Quem parou de me seguir**, uma seção separada mostra contas que estavam nas listas anteriores de seguidores e seguindo e desapareceram de ambas. A lista principal continua mostrando todos que deixaram de seguir.
+
+Essa comparação exige duas verificações consecutivas dessa aba com ambas as listas completas. Snapshots antigos e coletas pelo modo visual não incluem seguindo: nesse caso, a seção mostra **Indisponível**, sem inferir um resultado vazio. A coleta pela API passa a consultar também seguindo e pode demorar mais. A aba **Não me seguem** não atualiza essa linha de base.
+
+O resultado não comprova que alguém removeu você dos seguidores: unfollow manual, bloqueio e indisponibilidade de conta podem produzir mudanças semelhantes. A extensão identifica mudanças nas listas, sem atribuir causa ou iniciativa.
 
 ## Fotos de perfil
 
@@ -99,3 +107,10 @@ Esta análise mostra as contas seguidas que não aparecem na lista atual de segu
 ## Histórico
 
 Repositório criado no GitHub em **2026-09-21**. Essa data identifica a criação do repositório; não comprova o início nem a conclusão do desenvolvimento.
+
+## Novidades
+
+- Histórico acumulado de quem parou de seguir, com opção de apagar um ou todos.
+- Selo "Novo" e contador em "Não me seguem".
+- Botão "Verificar os dois" (popup e dashboard): uma coleta atualiza as duas análises.
+- Foto e @ clicáveis abrem o perfil no Instagram.

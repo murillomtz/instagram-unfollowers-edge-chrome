@@ -1,11 +1,12 @@
-import { compareFollowers, findNonFollowers, normalizeUsername, toFollowerMap } from "../core/follower-comparator.js";
+import { compareFollowers, findDisconnectedUsers, findNewUsers, findNonFollowers, mergeUnfollowHistory, normalizeUsername, toFollowerMap } from "../core/follower-comparator.js";
 import { isAllowedAvatarUrl, isAllowedImageType } from "../core/avatar-policy.js";
 import { createAvatarStore } from "../core/avatar-store.js";
 
 const SESSION_KEY = "scanSession";
 const RESULT_KEY = "lastScanResult";
 const SNAPSHOT_PREFIX = "followersSnapshot:";
-const SCAN_MODES = new Set(["unfollowers", "nonFollowers"]);
+const HISTORY_PREFIX = "unfollowHistory:";
+const SCAN_MODES = new Set(["unfollowers", "nonFollowers", "both"]);
 const avatarStore = createAvatarStore();
 const pendingAvatars = new Map();
 
@@ -55,7 +56,9 @@ async function startScan(rawMode) {
     status: "starting",
     message: mode === "unfollowers"
       ? "Preparando a análise de quem deixou de seguir…"
-      : "Preparando a análise de quem não segue você…",
+      : mode === "both"
+        ? "Preparando as duas análises…"
+        : "Preparando a análise de quem não segue você…",
     collected: 0,
     expected: null,
     startedAt: new Date().toISOString(),
@@ -109,7 +112,7 @@ async function completeScan(payload, tabId) {
   if (!account || !SCAN_MODES.has(mode)) {
     throw new Error("A varredura não retornou uma conta e uma lista válidas.");
   }
-  if (mode === "nonFollowers" && !followingAvailable) {
+  if (mode !== "unfollowers" && !followingAvailable) {
     throw new Error("A lista de contas seguidas não foi concluída.");
   }
 
@@ -131,10 +134,18 @@ async function completeScan(payload, tabId) {
   };
 
   const changes = {};
-  if (mode === "unfollowers") {
+  const historyKey = `${HISTORY_PREFIX}${account}`;
+  let history = null;
+  if (mode === "unfollowers" || mode === "both") {
     const currentTotal = Object.keys(currentFollowers).length;
+    const currentFollowing = followingAvailable ? toFollowerMap(following) : null;
+    const disconnectedAvailable = Boolean(previousSnapshot?.following && currentFollowing);
     result = {
       ...result,
+      disconnectedAvailable,
+      disconnected: disconnectedAvailable
+        ? findDisconnectedUsers(previousSnapshot.followers, currentFollowers, previousSnapshot.following, currentFollowing)
+        : [],
       unfollowersScannedAt: scannedAt,
       unfollowersAvailable: true,
       isBaseline: !previousSnapshot,
@@ -149,16 +160,27 @@ async function completeScan(payload, tabId) {
       account,
       scannedAt,
       total: currentTotal,
-      followers: currentFollowers
+      followers: currentFollowers,
+      following: currentFollowing
     };
-  } else {
+    if (previousSnapshot) {
+      const storedHistory = (await chrome.storage.local.get(historyKey))[historyKey] ?? {};
+      history = mergeUnfollowHistory(storedHistory, result.removed, currentFollowers, scannedAt);
+      changes[historyKey] = history;
+    }
+  }
+  if (mode === "nonFollowers" || mode === "both") {
     const currentFollowing = toFollowerMap(following);
+    const nonFollowers = findNonFollowers(currentFollowers, currentFollowing);
+    const hadPrevious = previousResult.nonFollowersAvailable === true;
     result = {
       ...result,
       nonFollowersScannedAt: scannedAt,
       nonFollowersFollowersTotal: Object.keys(currentFollowers).length,
       followingTotal: Object.keys(currentFollowing).length,
-      nonFollowers: findNonFollowers(currentFollowers, currentFollowing),
+      nonFollowers,
+      nonFollowersNew: hadPrevious ? findNewUsers(previousResult.nonFollowers, nonFollowers) : [],
+      nonFollowersComparable: hadPrevious,
       nonFollowersAvailable: true
     };
   }
@@ -171,19 +193,22 @@ async function completeScan(payload, tabId) {
   });
   await preserveAvatars([
     ...result.removed, ...result.nonFollowers,
-    ...(mode === "unfollowers" ? Object.values(currentFollowers) : [])
+    ...(history ? Object.values(history).map((entry) => entry.user) : []),
+    ...(mode !== "nonFollowers" ? Object.values(currentFollowers) : [])
   ]);
 
   // Cancellation/new scans during photo preservation must not be overwritten.
   const latest = await getSession();
   if (latest.scanId !== session.scanId || latest.status === "cancelled") return { ok: true, result };
 
-  const completedTotal = mode === "unfollowers"
-    ? result.unfollowersCurrentTotal
-    : result.followingTotal;
-  const message = mode === "unfollowers"
-    ? (result.isBaseline ? "Primeira lista de seguidores salva." : "Análise de unfollow concluída.")
-    : "Análise de quem não segue você concluída.";
+  const completedTotal = mode === "nonFollowers"
+    ? result.followingTotal
+    : result.unfollowersCurrentTotal;
+  const message = mode === "nonFollowers"
+    ? "Análise de quem não segue você concluída."
+    : mode === "both"
+      ? "As duas análises foram concluídas."
+      : (result.isBaseline ? "Primeira lista de seguidores salva." : "Análise de unfollow concluída.");
 
   await chrome.storage.session.set({
     [SESSION_KEY]: {
@@ -197,7 +222,7 @@ async function completeScan(payload, tabId) {
     }
   });
 
-  const dashboardUrl = chrome.runtime.getURL(`src/dashboard/dashboard.html?tab=${mode}`);
+  const dashboardUrl = chrome.runtime.getURL(`src/dashboard/dashboard.html?tab=${mode === "both" ? "unfollowers" : mode}`);
   await chrome.tabs.create({ url: dashboardUrl });
   return { ok: true, result };
 }

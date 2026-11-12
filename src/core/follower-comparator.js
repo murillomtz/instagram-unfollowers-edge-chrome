@@ -59,6 +59,14 @@ export function findNonFollowers(followers = [], following = []) {
   return result.sort((left, right) => left.username.localeCompare(right.username, "pt-BR"));
 }
 
+// Only classify accounts that disappeared from both previously observed relationships.
+export function findDisconnectedUsers(previousFollowers, currentFollowers, previousFollowing, currentFollowing) {
+  const previousIndex = buildIdentityIndex(previousFollowing);
+  const currentIndex = buildIdentityIndex(currentFollowing);
+  return compareFollowers(previousFollowers, currentFollowers)
+    .filter((user) => containsUser(previousIndex, user) && !containsUser(currentIndex, user));
+}
+
 function buildIdentityIndex(users) {
   const ids = new Set();
   const usernames = new Set();
@@ -98,4 +106,31 @@ function asUsers(users) {
   if (Array.isArray(users)) return users;
   if (users && typeof users === "object") return Object.values(users);
   return [];
+}
+
+// Histórico acumulado de quem deixou de seguir: chave = username.
+// Entra quem sumiu agora; sai quem voltou a seguir. Datas anteriores são preservadas.
+export function mergeUnfollowHistory(history = {}, removed = [], currentFollowers = {}, detectedAt = new Date().toISOString()) {
+  const currentIndex = buildIdentityIndex(currentFollowers);
+  const merged = Object.create(null);
+
+  for (const entry of Object.values(history ?? {})) {
+    const user = normalizeUser(entry?.user ?? entry);
+    if (!user.username || containsUser(currentIndex, user)) continue;
+    merged[user.username] = { user, detectedAt: entry?.detectedAt ?? detectedAt };
+  }
+  for (const rawUser of removed ?? []) {
+    const user = normalizeUser(rawUser);
+    if (!user.username) continue;
+    merged[user.username] = { user, detectedAt: merged[user.username]?.detectedAt ?? detectedAt };
+  }
+  return merged;
+}
+
+// Usuários presentes na lista atual e ausentes da anterior (por username).
+export function findNewUsers(previous = [], current = []) {
+  const known = new Set(asUsers(previous).map((user) => normalizeUsername(user?.username)));
+  return asUsers(current)
+    .map((user) => normalizeUsername(user?.username))
+    .filter((username) => username && !known.has(username));
 }

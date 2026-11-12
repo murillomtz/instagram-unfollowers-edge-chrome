@@ -15,12 +15,14 @@ const elements = {
   lastScanAt: document.querySelector("#lastScanAt"),
   scanUnfollowers: document.querySelector("#scanUnfollowers"),
   scanNonFollowers: document.querySelector("#scanNonFollowers"),
+  scanBoth: document.querySelector("#scanBoth"),
   cancelScan: document.querySelector("#cancelScan"),
   openDashboard: document.querySelector("#openDashboard")
 };
 
 elements.scanUnfollowers.addEventListener("click", () => startScan("unfollowers"));
 elements.scanNonFollowers.addEventListener("click", () => startScan("nonFollowers"));
+elements.scanBoth.addEventListener("click", () => startScan("both"));
 
 elements.cancelScan.addEventListener("click", async () => {
   await chrome.runtime.sendMessage({ type: "CANCEL_SCAN" });
@@ -81,6 +83,7 @@ function renderSession(session = {}) {
 function setScanButtonsDisabled(disabled) {
   elements.scanUnfollowers.disabled = disabled;
   elements.scanNonFollowers.disabled = disabled;
+  elements.scanBoth.disabled = disabled;
 }
 
 function renderResult(result) {

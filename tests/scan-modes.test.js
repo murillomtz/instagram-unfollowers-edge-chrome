@@ -17,8 +17,8 @@ test("popup oferece os dois modos como ações independentes", () => {
 });
 
 test("não seguidores não aciona o fallback visual de seguidores", () => {
-  assert.match(scanner, /if \(mode === "nonFollowers"\) throw error;/);
-  assert.match(scanner, /if \(mode === "nonFollowers"\) \{\s*throw new Error\("Não foi possível acessar as listas/);
+  assert.match(scanner, /if \(mode !== "unfollowers"\) throw error;/);
+  assert.match(scanner, /if \(mode !== "unfollowers"\) \{\s*throw new Error\("Não foi possível acessar as listas/);
 });
 
 test("progresso é reportado por lista, sem somar seguidores e seguindo", () => {
@@ -28,4 +28,9 @@ test("progresso é reportado por lista, sem somar seguidores e seguindo", () => 
 
 test("contas seguidas aceitam divergência final pequena", () => {
   assert.match(scanner, /Math\.max\(2, Math\.ceil\(expected \* 0\.01\)\)/);
+});
+
+test("popup oferece botão para os dois modos de uma vez", () => {
+  assert.match(popupHtml, /id="scanBoth"/);
+  assert.match(popupJs, /startScan\("both"\)/);
 });

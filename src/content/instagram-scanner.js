@@ -78,13 +78,13 @@
         return;
       } catch (error) {
         if (cancelled) throw error;
-        if (mode === "nonFollowers") throw error;
+        if (mode !== "unfollowers") throw error;
         console.warn("Unfollow Local: coleta pela API interna indisponível; usando o modo visual.", error);
         await progress("opening_followers", "Tentando o modo visual do Instagram…", 0, null, account);
       }
     }
 
-    if (mode === "nonFollowers") {
+    if (mode !== "unfollowers") {
       throw new Error("Não foi possível acessar as listas pela sessão do Instagram. Tente novamente mais tarde.");
     }
 
@@ -165,7 +165,7 @@
       onProgress: report
     });
     let following = null;
-    if (mode === "nonFollowers") {
+    try {
       await report("following", 0);
       await sleep(randomBetween(API_DELAY_MIN_MS, API_DELAY_MAX_MS));
       following = await collectRelationshipViaApi({
@@ -175,6 +175,12 @@
         expected: expectedFollowing,
         onProgress: report
       });
+      if (mode === "unfollowers" && expectedFollowing != null && following.length !== expectedFollowing) {
+        following = null;
+      }
+    } catch (error) {
+      if (cancelled || mode !== "unfollowers") throw error;
+      console.warn("Unfollow Local: lista de seguindo indisponível; análise nos dois sentidos indisponível.", error);
     }
 
     return { followers, following };
